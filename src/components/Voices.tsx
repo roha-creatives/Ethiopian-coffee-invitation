@@ -110,7 +110,7 @@ export default function Voices({ voices }: { voices: Voice[] }) {
           {voices.map((v, i) => (
             <figure className="v-card" key={i} aria-hidden={i !== active}>
               <div className="v-inner">
-                <blockquote className="v-headline">{v.headline}</blockquote>
+                <blockquote className="v-headline" lang="am">{v.headline}</blockquote>
                 <div className="v-bottom">
                   <figcaption className="v-pfp">
                     <span className="v-img">
