@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import QRCode from "qrcode";
+import { qrSvg, QR_LOGO } from "@/lib/qr";
 import { headers } from "next/headers";
 import { EVENT } from "@/lib/event";
 import { allRows } from "@/lib/sheets";
@@ -31,7 +31,7 @@ export default async function PassPage({ params }: Props) {
       error = "Couldn't load the guest list. Please try again.";
     }
   }
-  const qr = row ? await QRCode.toString(`${await siteUrl()}/p/${code}`, { type: "svg", margin: 0, color: { dark: "#0b1424", light: "#fbfbfb" } }) : "";
+  const qr = row ? await qrSvg(`${await siteUrl()}/p/${code}`) : "";
 
   return (
     <main className="pass-page">
@@ -50,7 +50,11 @@ export default async function PassPage({ params }: Props) {
           </div>
           <div className="pass-cut" aria-hidden />
           <div className="pass-bottom">
-            <div className="qr" role="img" aria-label="Entry QR code" dangerouslySetInnerHTML={{ __html: qr }} />
+            <div className="qr" role="img" aria-label="Entry QR code">
+              <div className="qr-code" dangerouslySetInnerHTML={{ __html: qr }} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="qr-logo" src={QR_LOGO} alt="" width={48} height={48} />
+            </div>
             <span className="pass-code">{code}</span>
             {!staff && <p className="pass-hint">Show this at the entrance.</p>}
           </div>
