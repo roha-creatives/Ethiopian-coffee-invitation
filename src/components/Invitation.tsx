@@ -8,11 +8,13 @@ import Showcase from "./Showcase";
 import Program from "./Program";
 import Voices from "./Voices";
 import Rsvp from "./Rsvp";
+import AmbientMusic from "./AmbientMusic";
 
 export default function Invitation({ event, viewer }: { event: EventContent; viewer: Viewer }) {
   return (
     <>
       <SmoothScroll />
+      <AmbientMusic />
       <Envelope host={event.title} card={event.card} logo={event.brand.logoNavy} sini={event.brand.sini} ring={event.brand.sealRing} />
       <Header host={event.title} logo={event.brand.logoNavy} timing={[event.dateShort, event.venue.name]} mapUrl={event.venue.mapUrl} />
       <main>
