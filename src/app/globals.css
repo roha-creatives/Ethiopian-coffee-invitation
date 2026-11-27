@@ -597,3 +597,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .music-toggle.is-on .music-bars i:nth-child(4) { animation-delay: -.7s; }
 @keyframes music-bar { 0%, 100% { height: 4px; } 50% { height: 16px; } }
 @media (prefers-reduced-motion: reduce) { .music-toggle.is-on .music-bars i { animation: none; height: 10px; } }
+
+/* ---------- small phones / large system text (e.g. Galaxy S22 with bigger font) ----------
+   Grid columns default to the widest content, so long words could push fields out of the card.
+   Clamp the column to the card and let text wrap instead. */
+.form { grid-template-columns: minmax(0, 1fr); }
+.form > *, .choice > label { min-width: 0; }
+.form h3 { overflow-wrap: anywhere; }
+.choice { grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5em), 1fr)); }
+.choice span { white-space: normal; text-align: center; }
+.form .cta { max-width: 100%; }
+.form .cta-text, .result-actions .cta-text, .rsvp-cal .cta-text { white-space: normal; }
+.rsvp-col, .rsvp-col > *, .pass { min-width: 0; max-width: 100%; }
+@media (max-width: 380px) { .card { padding: 1.25em; } .rsvp-wrap { padding-left: 12px; padding-right: 12px; } }
