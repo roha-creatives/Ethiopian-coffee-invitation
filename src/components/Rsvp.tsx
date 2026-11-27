@@ -1,10 +1,10 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import QRCode from "qrcode";
 import type { EventContent, Viewer } from "@/lib/event";
 import { Cta } from "./Header";
 import Countdown from "./Countdown";
-import { savePass } from "@/lib/pass-image";
+import { preparePass, sharePass, type PassFile } from "@/lib/pass-image";
+import { qrSvg, QR_LOGO } from "@/lib/qr";
 
 type Saved = {
   status: "confirmed" | "declined";
@@ -13,7 +13,6 @@ type Saved = {
   note: string;
   passCode: string | null;
   attending: "yes" | "no";
-  already?: boolean;
 };
 
 // the QR opens the pass page on this site; gate staff check guests in from there
@@ -39,7 +38,8 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
   const [qr, setQr] = useState("");
   const [closed, setClosed] = useState(false);
   const [website, setWebsite] = useState(""); // honeypot
-  const [saving, setSaving] = useState(false);
+  const [passFile, setPassFile] = useState<PassFile | null>(null);
+  const [calHref, setCalHref] = useState("");
   const onEnd = useCallback(() => setClosed(true), []);
 
   useEffect(() => {
@@ -47,35 +47,43 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
     if (s) { setSaved(s); setEditing(false); }
   }, [key]);
 
+  // QR on screen + the downloadable image, prepared as soon as there is a pass
   useEffect(() => {
-    if (saved?.passCode) QRCode.toString(passUrl(saved.passCode), { type: "svg", margin: 0, color: { dark: "#0b1424", light: "#fbfbfb" } }).then(setQr);
-  }, [saved?.passCode]);
+    if (!saved?.passCode) return;
+    const code = saved.passCode;
+    qrSvg(passUrl(code)).then(setQr);
+    let url = "";
+    preparePass({
+      name: saved.name, passCode: code, url: passUrl(code), host: event.host,
+      when: `${event.dateLong} · ${event.timeLabel}`, where: `${event.venue.name}, ${event.venue.city}`, logo: event.brand.logoWhite,
+    }).then((f) => { url = f.url; setPassFile(f); }).catch(() => setPassFile(null));
+    return () => { if (url) URL.revokeObjectURL(url); setPassFile(null); };
+  }, [saved?.passCode, saved?.name, event]);
 
   const location = `${event.venue.name}, ${event.venue.city}`;
   const gcal = useMemo(() =>
     "https://calendar.google.com/calendar/render?action=TEMPLATE" +
     `&text=${encodeURIComponent(event.title + " — launch")}` +
     `&dates=${toUTC(event.startsAt)}/${toUTC(event.endsAt)}` +
-    `&details=${encodeURIComponent("Please join us for our first pour.")}` +
-    `&location=${encodeURIComponent(location)}`, [event, location]);
+    `&details=${encodeURIComponent("The first pour. Bring your entry pass. Map: " + event.venue.mapUrl)}` +
+    `&location=${encodeURIComponent(location)}` +
+    "&ctz=Africa/Addis_Ababa", [event, location]);
 
-  const downloadIcs = () => {
-    const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//roha//invite//EN", "BEGIN:VEVENT",
-      `UID:${event.slug}@roha`, `DTSTAMP:${toUTC(new Date().toISOString())}`,
-      `DTSTART:${toUTC(event.startsAt)}`, `DTEND:${toUTC(event.endsAt)}`,
-      `SUMMARY:${event.title} — launch`, `LOCATION:${location}`,
-      "BEGIN:VALARM", "TRIGGER:-PT3H", "ACTION:DISPLAY", "DESCRIPTION:Reminder", "END:VALARM",
-      "END:VEVENT", "END:VCALENDAR"].join("\r\n");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
-    a.download = `${event.slug}.ics`;
-    document.body.appendChild(a); a.click(); a.remove();
-  };
+  // one "Add to calendar" button: Apple devices get the calendar file (opens Calendar),
+  // everyone else (Android, Windows) gets Google Calendar
+  useEffect(() => {
+    const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
+    setCalHref(apple ? "/event.ics" : gcal);
+  }, [gcal]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!attending) return setError("Please let us know if you can come.");
+    const digits = phone.replace(/\D/g, "").replace(/^251/, "").replace(/^0/, "");
+    if (name.trim().length < 2) return setError("Please enter your name.");
+    if (!digits) return setError("Please enter your phone number.");
+    if (!/^[79]\d{8}$/.test(digits)) return setError("Please check your phone number, e.g. 0911 234 567.");
+    if (!attending) return setError("Please choose Yes or No.");
     setBusy(true);
     try {
       const res = await fetch("/api/rsvp", {
@@ -95,7 +103,7 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
       setSaved(s);
       setEditing(false);
     } catch {
-      setError("No connection. Please try again.");
+      setError("No internet connection. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -109,19 +117,9 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
     setEditing(true);
   };
 
-  const download = async () => {
-    if (!saved?.passCode) return;
-    setSaving(true);
-    try {
-      await savePass({
-        name: saved.name, passCode: saved.passCode, url: passUrl(saved.passCode), host: event.host,
-        when: `${event.dateLong} · ${event.timeLabel}`, where: `${event.venue.name}, ${event.venue.city}`, logo: event.brand.logoWhite,
-      });
-    } catch {
-      alert("Couldn't create the image. Please take a screenshot instead.");
-    } finally {
-      setSaving(false);
-    }
+  const onDownload = (e: React.MouseEvent) => {
+    if (!passFile) { e.preventDefault(); return; }
+    if (sharePass(passFile)) e.preventDefault(); // phones: share sheet; otherwise the link downloads
   };
 
   return (
@@ -145,23 +143,19 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
               <p className="muted">
                 Kindly reply by {event.rsvpDeadline}. You&apos;ll get your entry pass right here.
               </p>
-              <label className="field"><span>Full name</span>
-                <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="e.g. Selam Bekele" /></label>
-              <label className="field"><span>Phone number</span>
-                <span className="phone"><b>+251</b><input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel-national" placeholder="9XX XXX XXX" /></span></label>
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="Full name" aria-label="Full name" />
+              <span className="phone"><b>+251</b><input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel-national" placeholder="Phone number" aria-label="Phone number" /></span>
               <div className="choice" role="radiogroup" aria-label="Will you attend?">
                 <label><input type="radio" name="attending" checked={attending === "yes"} onChange={() => setAttending("yes")} /><span>Yes, I&apos;ll be there</span></label>
                 <label><input type="radio" name="attending" checked={attending === "no"} onChange={() => setAttending("no")} /><span>Sadly, I can&apos;t</span></label>
               </div>
-              <label className="field"><span>A note for {event.host} <i>(optional)</i></span>
-                <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="How do you take your coffee?" /></label>
+              <textarea className="input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder={`A note for ${event.host} (optional)`} aria-label={`A note for ${event.host} (optional)`} />
               <input className="hp" tabIndex={-1} autoComplete="off" aria-hidden value={website} onChange={(e) => setWebsite(e.target.value)} name="website" />
               {error && <p className="form-error" role="alert">{error}</p>}
               <div><Cta type="submit" className="lg" disabled={busy}>{busy ? "Sending…" : "Send RSVP"}</Cta></div>
             </form>
           ) : saved?.status === "confirmed" ? (
             <div>
-              {saved.already && <p className="pass-already" role="status">You&apos;re already reserved. Here&apos;s your pass again.</p>}
               <div className="pass">
                 <div className="pass-top">
                   <p className="pass-label">Entry pass · {event.host}</p>
@@ -170,14 +164,19 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
                 </div>
                 <div className="pass-cut" aria-hidden />
                 <div className="pass-bottom">
-                  <div className="qr" role="img" aria-label="Entry QR code" dangerouslySetInnerHTML={{ __html: qr }} />
+                  <div className="qr" role="img" aria-label="Entry QR code">
+                    <div className="qr-code" dangerouslySetInnerHTML={{ __html: qr }} />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img className="qr-logo" src={QR_LOGO} alt="" width={48} height={48} />
+                  </div>
                   <span className="pass-code">{saved.passCode}</span>
                   <p className="pass-hint">Show this at the entrance. Save it to your phone so it&apos;s handy.</p>
                 </div>
               </div>
               <div className="result-actions">
-                <Cta className="light" onClick={download} disabled={saving}>{saving ? "Preparing…" : "Download pass"}</Cta>
-                <Cta href={gcal} className="light">Add to calendar</Cta>
+                <Cta className="light" href={passFile?.url ?? "#"} download={passFile?.file.name} onClick={onDownload}>
+                  {passFile ? "Download pass" : "Preparing…"}
+                </Cta>
               </div>
             </div>
           ) : (
@@ -196,8 +195,7 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
               <div><small>Where</small><span><a href={event.venue.mapUrl} target="_blank" rel="noopener">{event.venue.name}, {event.venue.city} ↗</a></span></div>
             </div>
             <div className="rsvp-cal">
-              <Cta href={gcal} className="light">Google Calendar</Cta>
-              <Cta className="light" onClick={downloadIcs}>Apple / Outlook</Cta>
+              <Cta href={calHref || gcal} className="light" newTab={!calHref.endsWith(".ics")}>Add to calendar</Cta>
             </div>
           </div>
         </div>

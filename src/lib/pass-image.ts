@@ -1,4 +1,4 @@
-import QRCode from "qrcode";
+import { qrCanvas, QR_LOGO } from "./qr";
 
 type PassInfo = { name: string; passCode: string; url: string; host: string; when: string; where: string; logo: string };
 
@@ -86,9 +86,18 @@ export async function renderPass(p: PassInfo): Promise<Blob> {
   const qrSize = 500, qx = (W - qrSize) / 2, qy = 930;
   ctx.fillStyle = "#fbfbfb";
   ctx.beginPath(); ctx.roundRect(qx - 36, qy - 36, qrSize + 72, qrSize + 72, 36); ctx.fill();
-  const qrCanvas = document.createElement("canvas");
-  await QRCode.toCanvas(qrCanvas, p.url, { width: qrSize, margin: 0, color: { dark: "#0b1424", light: "#fbfbfb" } });
-  ctx.drawImage(qrCanvas, qx, qy, qrSize, qrSize);
+  const qc = document.createElement("canvas");
+  await qrCanvas(qc, p.url, qrSize);
+  ctx.drawImage(qc, qx, qy, qrSize, qrSize);
+  // logo in the middle
+  try {
+    const mark = await loadImage(QR_LOGO);
+    const ms = qrSize * 0.22, mx = W / 2 - ms / 2, my = qy + qrSize / 2 - ms / 2;
+    ctx.fillStyle = "#fbfbfb";
+    ctx.beginPath(); ctx.roundRect(mx - 10, my - 10, ms + 20, ms + 20, 22); ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.roundRect(mx, my, ms, ms, 16); ctx.clip();
+    ctx.drawImage(mark, mx, my, ms, ms); ctx.restore();
+  } catch { /* QR still works without it */ }
 
   ctx.textAlign = "center";
   ctx.fillStyle = "#fbfbfb";
@@ -100,18 +109,23 @@ export async function renderPass(p: PassInfo): Promise<Blob> {
   return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't create image"))), "image/png"));
 }
 
-/** Phones: share sheet ("Save image" puts it in Photos). Otherwise: download. */
-export async function savePass(p: PassInfo) {
+export type PassFile = { file: File; url: string };
+
+/** Render once, ahead of the tap, so the download/share happens instantly inside the tap. */
+export async function preparePass(p: PassInfo): Promise<PassFile> {
   const blob = await renderPass(p);
   const file = new File([blob], `entry-pass-${p.passCode}.png`, { type: "image/png" });
+  return { file, url: URL.createObjectURL(blob) };
+}
+
+/** Phones: open the share sheet ("Save image" → Photos). Returns false when not possible → normal download. */
+export function sharePass(f: PassFile): boolean {
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
-  if (matchMedia("(pointer: coarse)").matches && nav.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: "Entry pass" }); return; }
-    catch (e) { if ((e as Error).name === "AbortError") return; }
-  }
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = file.name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  if (!matchMedia("(pointer: coarse)").matches || !nav.canShare?.({ files: [f.file] })) return false;
+  navigator.share({ files: [f.file], title: "Entry pass" }).catch((e: Error) => {
+    if (e.name === "AbortError") return; // guest closed the share sheet
+    const a = document.createElement("a"); // share refused → plain download
+    a.href = f.url; a.download = f.file.name; document.body.appendChild(a); a.click(); a.remove();
+  });
+  return true;
 }

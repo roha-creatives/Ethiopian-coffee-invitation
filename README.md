@@ -29,9 +29,9 @@ Powered by [Roha Creatives](https://rohacreatives.com).
 Every RSVP becomes a row in a private Google Sheet:
 `Time | Name | Phone | Coming | Note | Pass code | Checked in at`.
 
-- **Phone number = the guest.** Same phone and the same person again → "You're already reserved" and their existing pass (so a lost pass can be recovered). Same phone but a different name → refused.
+- **Same name + same phone = the same guest.** Replying again quietly gives back the same pass (so a lost pass can be recovered) and adds no row. The form never says whether a number is already on the list, so nobody can use it to check who is coming. A different name on the same phone is a separate guest.
 - Someone who said *no* can come back and say *yes*; they then get a pass.
-- **At the gate:** staff open `/gate` once and enter the PIN. After that, scanning a guest's QR with the normal camera shows ✓ *Valid pass* with a **Check in** button. A second scan of the same pass shows ⚠ *Already used* with the time. Staff can also search by name, phone or code.
+- **At the gate:** staff open `/gate` once and enter the PIN. After that, scanning a guest's QR with the normal camera shows ✓ *Valid pass* with a **Check in** button. A second scan of the same pass shows ⚠ *Already used* with the time. Staff can also search by name, phone (any format: 09…, 9…, 251…, +251…) or code, and check guests in straight from the list.
 - Rows can be edited by hand in the sheet. A row added by hand with `Coming = Yes` gets a pass code the first time that guest submits the form.
 
 ### One-time setup

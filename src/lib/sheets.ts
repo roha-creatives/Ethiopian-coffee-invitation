@@ -117,13 +117,23 @@ function assertUsable() {
 }
 
 // ---------- public API ----------
-export async function allRows(): Promise<Row[]> {
+// Each Google read takes ~0.3–0.5 s, so reads are cached briefly per server instance.
+// `maxAgeMs: 0` forces a fresh read (used before anything is written).
+let cache: { rows: Row[]; at: number } | null = null;
+
+export async function allRows({ maxAgeMs = 5000 }: { maxAgeMs?: number } = {}): Promise<Row[]> {
   assertUsable();
   if (!sheetsConfigured()) return mem.map((r) => ({ ...r }));
+  if (cache && Date.now() - cache.at <= maxAgeMs) return cache.rows.map((r) => ({ ...r }));
   await ensureHeader();
   const data = await api(`/values/${range(`A2:${LAST}`)}`);
-  return ((data.values as string[][] | undefined) ?? []).map(toRow).filter((r) => r.name || r.phone);
+  const rows = ((data.values as string[][] | undefined) ?? []).map(toRow).filter((r) => r.name || r.phone);
+  cache = { rows, at: Date.now() };
+  return rows.map((r) => ({ ...r }));
 }
+
+/** Age of the cached copy in ms (Infinity when there is none). */
+export const cacheAge = () => (cache ? Date.now() - cache.at : Infinity);
 
 export async function appendRow(r: Omit<Row, "row">): Promise<void> {
   assertUsable();
@@ -133,6 +143,7 @@ export async function appendRow(r: Omit<Row, "row">): Promise<void> {
     method: "POST",
     body: JSON.stringify({ values: [toValues(r)] }),
   });
+  cache = null; // row number unknown until the next read
 }
 
 export async function updateRow(r: Row): Promise<void> {
@@ -142,6 +153,7 @@ export async function updateRow(r: Row): Promise<void> {
     method: "PUT",
     body: JSON.stringify({ values: [toValues(r)] }),
   });
+  if (cache) cache.rows = cache.rows.map((x) => (x.row === r.row ? { ...r } : x));
 }
 
 /** Current time in Addis Ababa, e.g. "2026-12-05 16:12". */

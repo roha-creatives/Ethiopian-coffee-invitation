@@ -11,7 +11,8 @@ export async function POST(req: Request) {
   const c = String(code ?? "").trim().toUpperCase();
   if (!isPassCode(c)) return NextResponse.json({ error: "Invalid pass code." }, { status: 422 });
   try {
-    const row = (await allRows()).find((r) => r.passCode === c);
+    // the pass page usually read the sheet a moment ago, so this is often just one write
+    const row = (await allRows({ maxAgeMs: 8000 })).find((r) => r.passCode === c);
     if (!row || row.coming !== "Yes") return NextResponse.json({ error: "Pass not found." }, { status: 404 });
     if (row.checkedInAt) return NextResponse.json({ already: true, name: row.name, checkedInAt: row.checkedInAt });
     row.checkedInAt = addisNow();

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { markReady, prefersReducedMotion, setupGsap } from "@/lib/anim";
+import { startMusicEvent } from "./AmbientMusic";
 
 /**
  * Opening screen: brand logo, an envelope sealed with a turning "sini" (coffee cup) stamp.
@@ -42,6 +43,7 @@ export default function Envelope({ host, card, logo, sini, ring }: {
   const open = () => {
     if (opened.current) return;
     opened.current = true;
+    window.dispatchEvent(new Event(startMusicEvent)); // the tap lets the browser start the music
     if (prefersReducedMotion()) return finish();
     const { gsap } = setupGsap();
     const el = root.current!;
@@ -115,7 +117,7 @@ export default function Envelope({ host, card, logo, sini, ring }: {
         <img src={sini} alt="" width={34} height={34} />
         <span>Tap the sini to open</span>
       </button>
-      <button className="intro-note" onClick={() => { opened.current = true; finish(); }}>Skip</button>
+      <button className="intro-note" onClick={() => { opened.current = true; window.dispatchEvent(new Event(startMusicEvent)); finish(); }}>Skip</button>
     </div>
   );
 }
