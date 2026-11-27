@@ -67,49 +67,41 @@ export function PinForm() {
   );
 }
 
-type Guest = { name: string; phone: string; passCode: string; checkedInAt: string };
+type Hit = { name: string; phone: string; passCode: string; checkedInAt: string };
 
-/** Digits a phone number is compared on: "+251 911…", "251911…", "0911…", "911…" → "911…". */
-const phoneKey = (s: string) => s.replace(/\D/g, "").replace(/^251/, "").replace(/^0+/, "");
-
-function matches(g: Guest, q: string) {
-  const t = q.trim().toLowerCase();
-  if (t.length < 2) return false;
-  if (g.name.toLowerCase().includes(t)) return true;
-  const code = t.replace(/[\s-]/g, "").toUpperCase();
-  if (code.length >= 3 && g.passCode.replace(/-/g, "").includes(code)) return true;
-  // phone in any format (09…, 9…, 251…, +251…), with or without spaces
-  if (/^[\d\s+()-]+$/.test(t)) {
-    const k = phoneKey(t);
-    return k.length >= 2 && phoneKey(g.phone).includes(k);
-  }
-  return false;
-}
-
-/** Signed-in gate home: the guest list is loaded once, so search is instant; check in right from the list. */
+/**
+ * Signed-in gate home. Search runs on the server (the guest list never reaches the phone):
+ * a short pause after typing, and older requests are cancelled so only the latest answer shows.
+ */
 export function GateHome() {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [guests, setGuests] = useState<Guest[] | null>(null);
+  const [hits, setHits] = useState<Hit[]>([]);
+  const [stats, setStats] = useState<{ confirmed: number; checkedIn: number } | null>(null);
   const [error, setError] = useState("");
+  const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState("");
 
-  const load = useCallback(async () => {
+  const search = useCallback(async (query: string, signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/gate/guests", { cache: "no-store" });
+      const res = await fetch(`/api/gate/search?q=${encodeURIComponent(query)}`, { cache: "no-store", signal });
       const data = await res.json();
-      if (!res.ok) return setError(data.error || "Couldn't load the guest list.");
-      setError(""); setGuests(data.guests);
-    } catch {
-      setError("No connection.");
+      if (!res.ok) { setError(data.error || "Couldn't search."); return; }
+      setError(""); setStats(data.stats); setHits(data.results);
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") setError("No connection.");
+    } finally {
+      if (!signal?.aborted) setSearching(false);
     }
   }, []);
 
   useEffect(() => {
-    load();
-    const id = setInterval(load, 20000); // pick up new RSVPs and other gates' check-ins
-    return () => clearInterval(id);
-  }, [load]);
+    const ctrl = new AbortController();
+    const query = q.trim();
+    setSearching(query.length >= 2);
+    const t = setTimeout(() => search(query, ctrl.signal), query ? 250 : 0);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [q, search]);
 
   const checkIn = async (code: string) => {
     setBusy(code);
@@ -117,7 +109,8 @@ export function GateHome() {
       const res = await fetch("/api/gate/checkin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
       const data = await res.json();
       if (!res.ok) return setError(data.error || "Couldn't check in.");
-      setGuests((gs) => gs?.map((g) => (g.passCode === code ? { ...g, checkedInAt: data.checkedInAt } : g)) ?? gs);
+      setHits((hs) => hs.map((h) => (h.passCode === code ? { ...h, checkedInAt: data.checkedInAt } : h)));
+      setStats((st) => (st && !data.already ? { ...st, checkedIn: st.checkedIn + 1 } : st));
     } catch {
       setError("No connection. Try again.");
     } finally {
@@ -126,23 +119,23 @@ export function GateHome() {
   };
 
   const signOut = async () => { await fetch("/api/gate", { method: "DELETE" }); router.refresh(); };
-  const hits = guests && q ? guests.filter((g) => matches(g, q)).slice(0, 20) : [];
-  const inCount = guests?.filter((g) => g.checkedInAt).length ?? 0;
+  const query = q.trim();
 
   return (
     <div className="gate-home">
       <div className="card note">
         <h3>Scan a guest</h3>
         <p>Open your phone&apos;s <b>camera</b> and point it at the guest&apos;s QR code, then tap the link that appears. You&apos;ll see the guest&apos;s name and a <b>Check in</b> button.</p>
-        <p className="gate-stats">{guests ? <><b>{inCount}</b> checked in · <b>{guests.length}</b> reserved</> : "Loading guest list…"}</p>
+        <p className="gate-stats">{stats ? <><b>{stats.checkedIn}</b> checked in · <b>{stats.confirmed}</b> reserved</> : "Loading…"}</p>
       </div>
       <div className="card form">
         <h3>Find a guest</h3>
         <label className="field"><span>Name, phone or pass code</span>
           <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. Selam or 0911…" autoComplete="off" /></label>
         {error && <p className="form-error" role="alert">{error}</p>}
+        {searching && hits.length === 0 && <p className="muted">Searching…</p>}
         {hits.length > 0 && (
-          <ul className="gate-hits">
+          <ul className={`gate-hits${searching ? " is-stale" : ""}`}>
             {hits.map((h) => (
               <li key={h.passCode}>
                 <div>
@@ -156,7 +149,7 @@ export function GateHome() {
             ))}
           </ul>
         )}
-        {guests && q.trim().length >= 2 && hits.length === 0 && <p className="muted">No reserved guest matches.</p>}
+        {!searching && query.length >= 2 && hits.length === 0 && !error && <p className="muted">No reserved guest matches.</p>}
       </div>
       <p className="pass-page-foot"><button type="button" className="linkish" onClick={signOut}>Sign out</button></p>
     </div>

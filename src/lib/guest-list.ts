@@ -41,7 +41,10 @@ export const isPassCode = (s: string) => /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/
 
 // ---------- gate staff session ----------
 export const GATE_COOKIE = "gate";
-const gateToken = () => createHmac("sha256", serverSecret()).update("gate:" + (process.env.GATE_PIN || "")).digest("hex");
+export const GATE_SESSION_SECONDS = 60 * 60 * 36; // a staff phone stays signed in for 36 hours
+
+const sign = (exp: number) =>
+  createHmac("sha256", serverSecret()).update(`gate:${process.env.GATE_PIN || ""}:${exp}`).digest("hex");
 
 export function pinMatches(pin: string) {
   const expected = process.env.GATE_PIN;
@@ -50,13 +53,35 @@ export function pinMatches(pin: string) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export const gateCookieValue = () => gateToken();
+/** Signed, expiring session value: "<expiry>.<signature>". Changing GATE_PIN or GATE_SECRET signs everyone out. */
+export function gateCookieValue() {
+  const exp = Math.floor(Date.now() / 1000) + GATE_SESSION_SECONDS;
+  return `${exp}.${sign(exp)}`;
+}
 
 /** True when the request comes from a signed-in gate staff phone. */
 export async function isStaff() {
   if (!process.env.GATE_PIN) return false;
-  const v = (await cookies()).get(GATE_COOKIE)?.value;
-  if (!v) return false;
-  const a = Buffer.from(v), b = Buffer.from(gateToken());
+  const v = (await cookies()).get(GATE_COOKIE)?.value ?? "";
+  const [expStr, sig = ""] = v.split(".");
+  const exp = Number(expStr);
+  if (!exp || exp < Date.now() / 1000) return false;
+  const a = Buffer.from(sig), b = Buffer.from(sign(exp));
   return a.length === b.length && timingSafeEqual(a, b);
 }
+
+// ---------- PIN guessing limit (best effort, per server instance) ----------
+const attempts = new Map<string, { n: number; until: number }>();
+const MAX_TRIES = 5, WINDOW_MS = 15 * 60 * 1000;
+
+/** Returns false when this address has had too many wrong PINs recently. */
+export function pinAllowed(ip: string) {
+  const a = attempts.get(ip);
+  return !a || a.until < Date.now() || a.n < MAX_TRIES;
+}
+export function pinFailed(ip: string) {
+  const a = attempts.get(ip);
+  if (!a || a.until < Date.now()) attempts.set(ip, { n: 1, until: Date.now() + WINDOW_MS });
+  else a.n++;
+}
+export const pinSucceeded = (ip: string) => attempts.delete(ip);
