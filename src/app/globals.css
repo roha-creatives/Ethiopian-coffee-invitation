@@ -21,8 +21,8 @@
   --accent: #b5c4d8;       /* soft blue */
   --muted: #5b6b84;
 
-  --f-d: var(--f-display), "Noto Sans Ethiopic", system-ui, sans-serif;
-  --f-b: var(--f-body), "Noto Sans Ethiopic", system-ui, sans-serif;
+  --f-d: var(--f-display), var(--f-ethi), system-ui, sans-serif;
+  --f-b: var(--f-body), var(--f-ethi), system-ui, sans-serif;
   --f-e: var(--f-ethi), sans-serif;
 }
 @media (max-width: 991px) { :root { --size-container-ideal: 834; --size-container-min: 768px; --size-container-max: 991px; } }

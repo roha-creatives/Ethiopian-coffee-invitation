@@ -1,27 +1,36 @@
 import type { Metadata, Viewport } from "next";
-import { Kanit, Inter_Tight, Noto_Sans_Ethiopic } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
+// Fonts are bundled in src/fonts (OFL licensed) instead of fetched from Google at build time,
+// which made builds fail intermittently (on Vercel too).
+
 // Display face: bold, compact grotesque for headings
-const display = Kanit({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+const display = localFont({
+  src: [
+    { path: "../fonts/kanit-500.woff2", weight: "500" },
+    { path: "../fonts/kanit-600.woff2", weight: "600" },
+    { path: "../fonts/kanit-700.woff2", weight: "700" },
+  ],
   variable: "--f-display",
   display: "swap",
+  fallback: ["system-ui", "Arial"],
 });
-// Text face: clean grotesque for body copy
-const body = Inter_Tight({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+// Text face: clean grotesque for body copy (variable font)
+const body = localFont({
+  src: "../fonts/inter-tight-latin-var.woff2",
+  weight: "400 600",
   variable: "--f-body",
   display: "swap",
+  fallback: ["system-ui", "Arial"],
 });
-// Amharic appears on the opening envelope, so it stays preloaded
-const ethiopic = Noto_Sans_Ethiopic({
-  subsets: ["ethiopic"],
-  weight: ["700", "900"],
+// Amharic appears on the opening envelope, so it stays preloaded (variable font, Ethiopic subset)
+const ethiopic = localFont({
+  src: "../fonts/noto-sans-ethiopic-var.woff2",
+  weight: "700 900",
   variable: "--f-ethi",
   display: "swap",
+  fallback: ["Nyala", "Abyssinica SIL", "sans-serif"],
 });
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
