@@ -41,6 +41,8 @@ export type EventContent = {
   ethDate: string;
   venue: { name: string; city: string; mapUrl: string };
   rsvpDeadline: string;
+  /** RSVPs close (and the countdown ends) at this moment */
+  rsvpClosesAt: string;
   signs: { left: string; right: string };
   card: string;
   brand: { logoNavy: string; logoWhite: string; sini: string; sealRing: string };
@@ -85,7 +87,8 @@ export const EVENT: EventContent = {
     city: "Addis Ababa",
     mapUrl: "https://www.google.com/maps/search/?api=1&query=Friendship+Park+Addis+Ababa",
   },
-  rsvpDeadline: "December 3", // ASSUMPTION — confirm with the client
+  rsvpDeadline: "December 5 at 4 PM",
+  rsvpClosesAt: "2026-12-05T16:00:00+03:00", // same as the start of the program
   signs: { left: "/event/sign-left.webp", right: "/event/sign-right.webp" },
   card: "/event/card.webp",
   brand: {
@@ -131,17 +134,7 @@ export const EVENT: EventContent = {
   poweredBy: { name: "Roha Creatives", url: "https://rohacreatives.com" },
 };
 
-// Demo data — replaced by API lookups
-const GUESTS: Guest[] = [
-  { token: "k7Qp2Xa", name: "Abebe Kebede", firstName: "Abebe", maxParty: 2 },
-  { token: "Mx93LqT", name: "Hana Tesfaye", firstName: "Hana", maxParty: 1 },
-];
-
-export function getGuest(token: string): Guest | undefined {
-  return GUESTS.find((g) => g.token === token);
-}
-
+// The one general link guests receive. One RSVP = one person = one pass.
 export const GENERAL_LINKS: Record<string, { mode: "auto" | "approval"; maxPerRequest: number }> = {
-  "first-pour": { mode: "auto", maxPerRequest: 2 },
-  "first-pour-vip": { mode: "approval", maxPerRequest: 2 },
+  "first-pour": { mode: "auto", maxPerRequest: 1 },
 };
