@@ -99,13 +99,11 @@ export const EVENT: EventContent = {
   },
   // product photos from the client's site (ethiopiancoffee-nine.vercel.app)
   showcase: [
-    { src: "/products/pack-line-dark.jpg", alt: "Ethiopian Coffee packs" },
-    { src: "/products/pack-light.jpg", alt: "Single-origin Ethiopian Coffee bag" },
-    { src: "/event/card.webp", alt: "The invitation card" },
-    { src: "/products/pack-beans-navy.jpg", alt: "Ethiopian Coffee whole beans" },
-    { src: "/products/roasted-tins.jpg", alt: "Roasted Ethiopian Coffee tins" },
-    { src: "/hero/products-float.jpg", alt: "Two Ethiopian Coffee bags, navy and white" },
-    { src: "/hero/products-shelf.webp", alt: "Ethiopian Coffee bags on a shelf" },
+    { src: "/products/bags-navy.webp", alt: "Navy Ethiopian Coffee single-origin bags" },
+    { src: "/products/bags-white.webp", alt: "White Ethiopian Coffee single-origin bags" },
+    { src: "/products/espresso-bar.webp", alt: "Ethiopian Coffee bag and cups at an espresso machine" },
+    { src: "/products/bags-pair.webp", alt: "A navy and a white Ethiopian Coffee bag" },
+    { src: "/products/bags-all.webp", alt: "The Ethiopian Coffee range, navy and white bags together" },
   ],
   program: [
     { time: "4:00 PM", title: ["The first", "cup"], icon: "jebena",
