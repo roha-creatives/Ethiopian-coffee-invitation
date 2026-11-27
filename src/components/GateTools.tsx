@@ -60,7 +60,7 @@ export function PinForm() {
     <form className="card form" onSubmit={submit}>
       <h3>Staff sign-in</h3>
       <label className="field"><span>Gate PIN</span>
-        <input className="input" value={pin} onChange={(e) => setPin(e.target.value)} inputMode="numeric" autoComplete="off" type="password" /></label>
+        <input className="input" value={pin} onChange={(e) => setPin(e.target.value)} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} type="password" /></label>
       {error && <p className="form-error" role="alert">{error}</p>}
       <div><Cta type="submit" className="lg" disabled={busy || !pin}>{busy ? "Checking…" : "Sign in"}</Cta></div>
     </form>
