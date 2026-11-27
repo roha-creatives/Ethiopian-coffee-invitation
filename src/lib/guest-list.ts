@@ -11,13 +11,21 @@ export function normalizePhone(input: unknown): string | null {
 
 const words = (s: string) => s.toLowerCase().normalize("NFC").replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
 
-/** Same person? People type their names differently ("Abebe K." vs "abebe kebede"), so be forgiving. */
+/**
+ * Same person? Every word of the shorter name must start a word of the longer one, in order:
+ * "Selam" ≈ "Selam Bekele", "selam b." ≈ "Selam Bekele", but "Selam Tadesse" ≠ "Selam Bekele".
+ */
 export function sameName(a: string, b: string) {
-  const x = words(a), y = words(b);
+  let x = words(a), y = words(b);
   if (!x.length || !y.length) return false;
-  if (x[0] === y[0]) return true;
-  const jx = x.join(""), jy = y.join("");
-  return jx.includes(jy) || jy.includes(jx);
+  if (x.length > y.length) [x, y] = [y, x];
+  let j = 0;
+  for (const w of x) {
+    while (j < y.length && !y[j].startsWith(w)) j++;
+    if (j === y.length) return false;
+    j++;
+  }
+  return true;
 }
 
 const ALPHA = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
