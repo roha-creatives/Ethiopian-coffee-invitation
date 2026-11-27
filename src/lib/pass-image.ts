@@ -117,15 +117,3 @@ export async function preparePass(p: PassInfo): Promise<PassFile> {
   const file = new File([blob], `entry-pass-${p.passCode}.png`, { type: "image/png" });
   return { file, url: URL.createObjectURL(blob) };
 }
-
-/** Phones: open the share sheet ("Save image" → Photos). Returns false when not possible → normal download. */
-export function sharePass(f: PassFile): boolean {
-  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
-  if (!matchMedia("(pointer: coarse)").matches || !nav.canShare?.({ files: [f.file] })) return false;
-  navigator.share({ files: [f.file], title: "Entry pass" }).catch((e: Error) => {
-    if (e.name === "AbortError") return; // guest closed the share sheet
-    const a = document.createElement("a"); // share refused → plain download
-    a.href = f.url; a.download = f.file.name; document.body.appendChild(a); a.click(); a.remove();
-  });
-  return true;
-}

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EventContent, Viewer } from "@/lib/event";
 import { Cta } from "./Header";
 import Countdown from "./Countdown";
-import { preparePass, sharePass, type PassFile } from "@/lib/pass-image";
+import { preparePass, type PassFile } from "@/lib/pass-image";
 import { qrSvg, QR_LOGO } from "@/lib/qr";
 
 type Saved = {
@@ -117,10 +117,8 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
     setEditing(true);
   };
 
-  const onDownload = (e: React.MouseEvent) => {
-    if (!passFile) { e.preventDefault(); return; }
-    if (sharePass(passFile)) e.preventDefault(); // phones: share sheet; otherwise the link downloads
-  };
+  // a plain file download on every device (the share sheet on phones offered "copy", not "save")
+  const onDownload = (e: React.MouseEvent) => { if (!passFile) e.preventDefault(); };
 
   return (
     <section className="rsvp" id="rsvp">
