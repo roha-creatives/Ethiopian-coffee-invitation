@@ -1,20 +1,23 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import type { EventContent, Viewer } from "@/lib/event";
 import { Cta } from "./Header";
+import Countdown from "./Countdown";
+import { savePass } from "@/lib/pass-image";
 
 type Saved = {
-  status: "confirmed" | "declined" | "pending_approval";
+  status: "confirmed" | "declined";
   name: string;
   phone: string | null;
-  seats: number;
   note: string;
   passCode: string | null;
   attending: "yes" | "no";
+  already?: boolean;
 };
 
-const PASS_BASE = "https://yourdomain.et/p/"; // QR target — real pass page on the platform
+// the QR opens the pass page on this site; gate staff check guests in from there
+const passUrl = (code: string) => `${window.location.origin}/p/${code}`;
 
 const store = {
   get(k: string): Saved | null { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } },
@@ -28,13 +31,16 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
   const [saved, setSaved] = useState<Saved | null>(null);
   const [editing, setEditing] = useState(true);
   const [attending, setAttending] = useState<"yes" | "no" | null>(null);
-  const [seats, setSeats] = useState(viewer.maxParty);
   const [name, setName] = useState(viewer.kind === "individual" ? viewer.guest.name : "");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [qr, setQr] = useState("");
+  const [closed, setClosed] = useState(false);
+  const [website, setWebsite] = useState(""); // honeypot
+  const [saving, setSaving] = useState(false);
+  const onEnd = useCallback(() => setClosed(true), []);
 
   useEffect(() => {
     const s = store.get(key);
@@ -42,7 +48,7 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
   }, [key]);
 
   useEffect(() => {
-    if (saved?.passCode) QRCode.toString(PASS_BASE + saved.passCode, { type: "svg", margin: 0, color: { dark: "#0b1424", light: "#fbfbfb" } }).then(setQr);
+    if (saved?.passCode) QRCode.toString(passUrl(saved.passCode), { type: "svg", margin: 0, color: { dark: "#0b1424", light: "#fbfbfb" } }).then(setQr);
   }, [saved?.passCode]);
 
   const location = `${event.venue.name}, ${event.venue.city}`;
@@ -78,10 +84,11 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
         body: JSON.stringify({
           ...(viewer.kind === "individual" ? { token: viewer.guest.token } : { code: viewer.code }),
           name, phone,
-          attending, seats, note, passCode: saved?.passCode,
+          attending, note, website,
         }),
       });
       const data = await res.json();
+      if (res.status === 410) setClosed(true);
       if (!res.ok) return setError(data.error || "Something went wrong. Please try again.");
       const s: Saved = { ...data, attending };
       store.set(key, s);
@@ -96,13 +103,26 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
 
   const edit = () => {
     if (saved) {
-      setAttending(saved.attending); setSeats(saved.seats || viewer.maxParty); setNote(saved.note || "");
+      setAttending(saved.attending); setNote(saved.note || "");
       setName(saved.name); setPhone((saved.phone || "").replace("+251", ""));
     }
     setEditing(true);
   };
 
-  const people = (n: number) => `${n} ${n > 1 ? "people" : "person"}`;
+  const download = async () => {
+    if (!saved?.passCode) return;
+    setSaving(true);
+    try {
+      await savePass({
+        name: saved.name, passCode: saved.passCode, url: passUrl(saved.passCode), host: event.host,
+        when: `${event.dateLong} · ${event.timeLabel}`, where: `${event.venue.name}, ${event.venue.city}`, logo: event.brand.logoWhite,
+      });
+    } catch {
+      alert("Couldn't create the image. Please take a screenshot instead.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <section className="rsvp" id="rsvp">
@@ -113,11 +133,17 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
       </svg>
       <div className="rsvp-wrap">
         <div className="rsvp-col">
-          {editing ? (
+          {!closed && <Countdown to={event.rsvpClosesAt} label="The first pour begins in" onEnd={onEnd} />}
+          {editing && closed ? (
+            <div className="card note">
+              <h3>RSVP is closed</h3>
+              <p>The first pour has begun. If you already reserved, show the entry pass you saved.</p>
+            </div>
+          ) : editing ? (
             <form className="card form" onSubmit={submit} noValidate>
               <h3>Will you join us?</h3>
               <p className="muted">
-                Kindly reply by {event.rsvpDeadline}.{viewer.kind === "general" && viewer.mode === "approval" ? " Your spot will be confirmed by SMS." : ""}
+                Kindly reply by {event.rsvpDeadline}. You&apos;ll get your entry pass right here.
               </p>
               <label className="field"><span>Full name</span>
                 <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="e.g. Selam Bekele" /></label>
@@ -127,58 +153,40 @@ export default function Rsvp({ event, viewer }: { event: EventContent; viewer: V
                 <label><input type="radio" name="attending" checked={attending === "yes"} onChange={() => setAttending("yes")} /><span>Yes, I&apos;ll be there</span></label>
                 <label><input type="radio" name="attending" checked={attending === "no"} onChange={() => setAttending("no")} /><span>Sadly, I can&apos;t</span></label>
               </div>
-              {attending === "yes" && viewer.maxParty > 1 && (
-                <div className="seats">
-                  <p>How many people?<small>Including you · up to {viewer.maxParty}</small></p>
-                  <div className="stepper">
-                    <button type="button" aria-label="Fewer" disabled={seats <= 1} onClick={() => setSeats(seats - 1)}>−</button>
-                    <output aria-live="polite">{seats}</output>
-                    <button type="button" aria-label="More" disabled={seats >= viewer.maxParty} onClick={() => setSeats(seats + 1)}>+</button>
-                  </div>
-                </div>
-              )}
               <label className="field"><span>A note for {event.host} <i>(optional)</i></span>
                 <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="How do you take your coffee?" /></label>
+              <input className="hp" tabIndex={-1} autoComplete="off" aria-hidden value={website} onChange={(e) => setWebsite(e.target.value)} name="website" />
               {error && <p className="form-error" role="alert">{error}</p>}
               <div><Cta type="submit" className="lg" disabled={busy}>{busy ? "Sending…" : "Send RSVP"}</Cta></div>
             </form>
           ) : saved?.status === "confirmed" ? (
             <div>
+              {saved.already && <p className="pass-already" role="status">You&apos;re already reserved. Here&apos;s your pass again.</p>}
               <div className="pass">
                 <div className="pass-top">
                   <p className="pass-label">Entry pass · {event.host}</p>
                   <p className="pass-name">{saved.name}</p>
-                  <div className="pass-meta"><span>{people(saved.seats)}</span><span>{event.dateShort}</span><span>{event.venue.name}</span></div>
+                  <div className="pass-meta"><span>{event.dateShort}</span><span>{event.venue.name}</span></div>
                 </div>
                 <div className="pass-cut" aria-hidden />
                 <div className="pass-bottom">
                   <div className="qr" role="img" aria-label="Entry QR code" dangerouslySetInnerHTML={{ __html: qr }} />
                   <span className="pass-code">{saved.passCode}</span>
-                  <p className="pass-hint">Show this at the entrance — screenshot it to keep it handy.</p>
+                  <p className="pass-hint">Show this at the entrance. Save it to your phone so it&apos;s handy.</p>
                 </div>
               </div>
               <div className="result-actions">
+                <Cta className="light" onClick={download} disabled={saving}>{saving ? "Preparing…" : "Download pass"}</Cta>
                 <Cta href={gcal} className="light">Add to calendar</Cta>
-                <Cta className="light" onClick={edit}>Change my reply</Cta>
               </div>
             </div>
           ) : (
             <div>
               <div className="card note">
-                {saved?.status === "pending_approval" ? (
-                  <>
-                    <h3>Request received</h3>
-                    <p>Thank you, {saved.name.split(" ")[0]}. {event.host} will confirm your spot for {people(saved.seats)}.</p>
-                    <p>Your entry pass will be sent by SMS to {saved.phone}.</p>
-                  </>
-                ) : (
-                  <>
-                    <h3>We&apos;ll miss you</h3>
-                    <p>Thank you for letting us know. If your plans change, you can update your reply until {event.rsvpDeadline}.</p>
-                  </>
-                )}
+                <h3>We&apos;ll miss you</h3>
+                <p>Thank you for letting us know. If your plans change, you can reply again until {event.rsvpDeadline}.</p>
               </div>
-              <div className="result-actions"><Cta className="light" onClick={edit}>Change my reply</Cta></div>
+              {!closed && <div className="result-actions"><Cta className="light" onClick={edit}>Change my reply</Cta></div>}
             </div>
           )}
 

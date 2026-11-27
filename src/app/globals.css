@@ -531,3 +531,35 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* Amharic proverb headlines: Ethiopic face, a touch larger, no forced uppercase */
 .v-headline[lang="am"] { font-family: var(--f-e); font-weight: 900; font-size: 4.2em; line-height: 1.1; letter-spacing: 0; }
 @media (max-width: 479px) { .v-headline[lang="am"] { font-size: 4.4em; } }
+
+/* ---------- COUNTDOWN (RSVP section) ---------- */
+.countdown { text-align: center; }
+.countdown-label { margin: 0 0 .9em; font-size: .8em; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; opacity: .8; }
+.countdown-boxes { display: grid; grid-template-columns: repeat(4, 1fr); gap: .6em; }
+.countdown-box { display: grid; gap: .25em; padding: .9em .3em .8em; border-radius: .9em; background: rgba(251,251,251,.08); border: 1px solid rgba(251,251,251,.16); }
+.countdown-box span { font-family: var(--f-d); font-weight: 600; font-size: 3em; line-height: 1; font-variant-numeric: tabular-nums; }
+.countdown-box small { font-size: .72em; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+@media (max-width: 479px) { .countdown-box span { font-size: 2.5em; } }
+
+/* RSVP extras */
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.pass-already { margin: 0 0 1em; padding: .8em 1em; border-radius: .8em; background: rgba(251,251,251,.12); font-weight: 600; text-align: center; }
+
+/* ---------- PASS PAGE + GATE ---------- */
+.pass-page { min-height: 100svh; background: var(--primary); color: var(--white); display: flex; flex-direction: column; align-items: center; gap: 1.5em; padding: 2em 16px 3em; }
+.pass-page > * { width: 100%; max-width: 30em; }
+.pass-page .pass-page-logo { width: auto; height: 4.5em; max-width: none; background: var(--white); border-radius: .8em; padding: .5em .8em; }
+.pass-page-foot { text-align: center; opacity: .85; }
+.pass-page-foot a, .linkish { color: inherit; font: inherit; background: none; border: 0; text-decoration: underline; cursor: pointer; padding: .8em; }
+.gate-title { margin: 0; font-family: var(--f-d); font-weight: 600; font-size: 2.4em; text-transform: uppercase; text-align: center; }
+.gate-home { display: grid; gap: 1.2em; }
+.gate-stats { font-size: 1.1em; color: var(--ink) !important; }
+.gate-result { border-radius: 1em; padding: 1.3em 1.4em; color: #fff; font-size: 1.15em; line-height: 1.4; }
+.gate-result p { margin: 0 0 .8em; } .gate-result p:last-child { margin: 0; }
+.gate-result b { font-size: 1.35em; }
+.gate-result.ok { background: #1f7a4d; }
+.gate-result.warn { background: #b26a00; }
+.gate-result.bad { background: #b3261e; }
+.gate-hits { list-style: none; margin: 0; padding: 0; display: grid; gap: .5em; }
+.gate-hits a { display: grid; gap: .2em; padding: .8em 1em; border-radius: .8em; background: var(--secondary); color: var(--ink); text-decoration: none; min-height: 44px; }
+.gate-hits span { font-size: .85em; color: var(--muted); }

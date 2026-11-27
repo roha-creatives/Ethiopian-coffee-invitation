@@ -1,0 +1,117 @@
+import QRCode from "qrcode";
+
+type PassInfo = { name: string; passCode: string; url: string; host: string; when: string; where: string; logo: string };
+
+const loadImage = (src: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+
+/** Font stacks from the page (next/font generates the family names). */
+function fonts() {
+  const css = getComputedStyle(document.documentElement);
+  const ethi = css.getPropertyValue("--f-ethi").trim();
+  return {
+    display: `${css.getPropertyValue("--f-display").trim()}, ${ethi}, sans-serif`,
+    body: `${css.getPropertyValue("--f-body").trim()}, ${ethi}, sans-serif`,
+  };
+}
+
+/** Wrap text to at most `maxLines` lines that fit `width`. */
+function lines(ctx: CanvasRenderingContext2D, text: string, width: number, maxLines: number) {
+  const out: string[] = [];
+  let cur = "";
+  for (const w of text.split(/\s+/)) {
+    const next = cur ? `${cur} ${w}` : w;
+    if (ctx.measureText(next).width <= width || !cur) cur = next;
+    else { out.push(cur); cur = w; }
+  }
+  if (cur) out.push(cur);
+  return out.slice(0, maxLines);
+}
+
+/** Draws the entry pass as a 1080×1620 PNG (phone-photo friendly). */
+export async function renderPass(p: PassInfo): Promise<Blob> {
+  const W = 1080, H = 1620, M = 90;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const ctx = c.getContext("2d")!;
+  const f = fonts();
+  await document.fonts?.ready;
+
+  // card
+  ctx.fillStyle = "#24385c";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#152441";
+  ctx.beginPath(); ctx.roundRect(50, 50, W - 100, H - 100, 48); ctx.fill();
+
+  // logo
+  try {
+    const logo = await loadImage(p.logo);
+    const lh = 150, lw = (logo.width / logo.height) * lh;
+    ctx.drawImage(logo, M + 10, 110, lw, lh);
+  } catch { /* logo is decoration only */ }
+
+  ctx.fillStyle = "rgba(251,251,251,.75)";
+  ctx.font = `600 30px ${f.body}`;
+  ctx.letterSpacing = "6px";
+  ctx.fillText(`ENTRY PASS · ${p.host.toUpperCase()}`, M + 10, 340);
+  ctx.letterSpacing = "0px";
+
+  // name (up to 2 lines)
+  ctx.fillStyle = "#fbfbfb";
+  ctx.font = `600 96px ${f.display}`;
+  const nameLines = lines(ctx, p.name.toUpperCase(), W - 2 * M - 20, 2);
+  nameLines.forEach((l, i) => ctx.fillText(l, M + 10, 450 + i * 100));
+  let y = 450 + nameLines.length * 100 + 10;
+
+  ctx.fillStyle = "rgba(251,251,251,.88)";
+  ctx.font = `500 38px ${f.body}`;
+  ctx.fillText(p.when, M + 10, y); y += 56;
+  ctx.fillText(p.where, M + 10, y);
+
+  // tear line with notches
+  const cutY = 860;
+  ctx.strokeStyle = "rgba(255,255,255,.28)";
+  ctx.lineWidth = 4; ctx.setLineDash([18, 14]);
+  ctx.beginPath(); ctx.moveTo(110, cutY); ctx.lineTo(W - 110, cutY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#24385c";
+  for (const x of [50, W - 50]) { ctx.beginPath(); ctx.arc(x, cutY, 40, 0, Math.PI * 2); ctx.fill(); }
+
+  // QR
+  const qrSize = 500, qx = (W - qrSize) / 2, qy = 930;
+  ctx.fillStyle = "#fbfbfb";
+  ctx.beginPath(); ctx.roundRect(qx - 36, qy - 36, qrSize + 72, qrSize + 72, 36); ctx.fill();
+  const qrCanvas = document.createElement("canvas");
+  await QRCode.toCanvas(qrCanvas, p.url, { width: qrSize, margin: 0, color: { dark: "#0b1424", light: "#fbfbfb" } });
+  ctx.drawImage(qrCanvas, qx, qy, qrSize, qrSize);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#fbfbfb";
+  ctx.font = `500 40px ui-monospace, Menlo, monospace`;
+  ctx.letterSpacing = "10px";
+  ctx.fillText(p.passCode, W / 2, qy + qrSize + 100);
+  ctx.letterSpacing = "0px";
+
+  return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't create image"))), "image/png"));
+}
+
+/** Phones: share sheet ("Save image" puts it in Photos). Otherwise: download. */
+export async function savePass(p: PassInfo) {
+  const blob = await renderPass(p);
+  const file = new File([blob], `entry-pass-${p.passCode}.png`, { type: "image/png" });
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  if (matchMedia("(pointer: coarse)").matches && nav.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: "Entry pass" }); return; }
+    catch (e) { if ((e as Error).name === "AbortError") return; }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
