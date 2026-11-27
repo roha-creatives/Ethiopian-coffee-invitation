@@ -80,14 +80,19 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border-radius: 50%; background: var(--primary); transform: translateY(-50%) scale(1);
   transition: transform .55s cubic-bezier(.6,0,.2,1);
 }
-@media (hover: hover) {
-  .cta:hover::before { transform: translateY(-50%) scale(12); }
-  .cta:hover .cta-arrow svg { transform: rotate(45deg); }
-}
 .cta.lg { font-size: 1.35em; }
 .cta.light { background: var(--white); }
 .cta.light .cta-text { color: var(--ink); }
-.cta.light:hover .cta-text { color: var(--white); }
+/* the blue flood + white text only on real hover (mouse). On touch screens :hover "sticks"
+   after a tap without the flood, which used to leave white text on a white button. */
+@media (hover: hover) and (pointer: fine) {
+  .cta:not(:disabled):hover::before { transform: translateY(-50%) scale(12); }
+  .cta:not(:disabled):hover .cta-arrow svg { transform: rotate(45deg); }
+  .cta.light:not(:disabled):hover .cta-text { color: var(--white); }
+}
+/* touch feedback instead */
+.cta { -webkit-tap-highlight-color: transparent; transition: transform .15s; }
+.cta:active { transform: scale(.97); }
 .cta:disabled { opacity: .6; cursor: default; }
 
 /* =====================================================================
@@ -561,5 +566,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .gate-result.warn { background: #b26a00; }
 .gate-result.bad { background: #b3261e; }
 .gate-hits { list-style: none; margin: 0; padding: 0; display: grid; gap: .5em; }
-.gate-hits a { display: grid; gap: .2em; padding: .8em 1em; border-radius: .8em; background: var(--secondary); color: var(--ink); text-decoration: none; min-height: 44px; }
-.gate-hits span { font-size: .85em; color: var(--muted); }
+.gate-hits li { display: flex; align-items: center; justify-content: space-between; gap: .8em; padding: .7em .7em .7em 1em; border-radius: .8em; background: var(--secondary); color: var(--ink); min-height: 44px; }
+.gate-hits li > div { display: grid; gap: .2em; min-width: 0; }
+.gate-hits li > div span { font-size: .85em; color: var(--muted); }
+.gate-btn { flex: none; min-height: 44px; padding: 0 1.1em; border: 0; border-radius: 100px; background: var(--ink); color: var(--white); font: 600 .9em var(--f-b); cursor: pointer; }
+.gate-btn:disabled { opacity: .6; }
+.gate-in { flex: none; font-weight: 700; color: #1f7a4d; padding: 0 .6em; }
+
+/* QR with the logo in the middle */
+.qr { position: relative; }
+.qr-code, .qr-code svg { width: 100%; height: 100%; display: block; }
+.qr-logo { position: absolute; left: 50%; top: 50%; width: 22%; height: 22%; transform: translate(-50%, -50%);
+  border-radius: 14%; box-shadow: 0 0 0 .3em var(--white); background: var(--white); }
+.form textarea.input { resize: vertical; min-height: 4.6em; }
+.input::placeholder, .phone input::placeholder { color: #6b7a90; opacity: 1; }

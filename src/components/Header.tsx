@@ -10,9 +10,10 @@ export function Arrow() {
   );
 }
 
-export function Cta({ href, children, className = "", onClick, type, disabled }: {
+export function Cta({ href, children, className = "", onClick, type, disabled, download, newTab }: {
   href?: string; children: React.ReactNode; className?: string;
-  onClick?: () => void; type?: "submit" | "button"; disabled?: boolean;
+  onClick?: (e: React.MouseEvent) => void; type?: "submit" | "button"; disabled?: boolean;
+  download?: string; newTab?: boolean;
 }) {
   const inner = (
     <>
@@ -20,7 +21,10 @@ export function Cta({ href, children, className = "", onClick, type, disabled }:
       <span className="cta-arrow"><Arrow /></span>
     </>
   );
-  if (href) return <a className={`cta ${className}`} href={href} onClick={onClick}>{inner}</a>;
+  if (href) return (
+    <a className={`cta ${className}`} href={href} onClick={onClick} download={download}
+      {...(newTab ? { target: "_blank", rel: "noopener" } : {})}>{inner}</a>
+  );
   return <button className={`cta ${className}`} type={type ?? "button"} onClick={onClick} disabled={disabled}>{inner}</button>;
 }
 
